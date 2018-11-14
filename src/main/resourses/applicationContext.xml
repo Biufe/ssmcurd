@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/context
+    http://www.springframework.org/schema/context/spring-context.xsd
+    http://www.springframework.org/schema/aop
+    http://www.springframework.org/schema/aop/spring-aop.xsd
+    http://www.springframework.org/schema/tx
+    http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!--配置与逻辑业务相关的配置-->
+    <!--数据源，数据控制等-->
+
+    <context:component-scan base-package="com.atguigu">
+        <!--不扫描控制器-->
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"></context:exclude-filter>
+    </context:component-scan>
+    <!--引入类路径下的配置文件-->
+    <context:property-placeholder location="classpath:dbconfig.properties"></context:property-placeholder>
+    <bean id="comboPooledDataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+        <property name="jdbcUrl" value="${jdbc.jdbcUrl}"></property>
+        <property name="driverClass" value="${jdbc.driverClass}"></property>
+        <property name="user" value="${jdbc.user}"></property>
+        <property name="password" value="${jdbc.password}"></property>
+    </bean>
+
+
+    <!--mybatis整合===================================================-->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <!--配置mybatis全局配置文件所在位置 mybatis_config.xml 类型转换异常：无法将Spring转成Configuration类型??-->
+        <!--<property name="configuration" value="classpath:*.xml"></property>-->
+        <!-- 注入数据库连接池 -->
+        <property name="dataSource" ref="comboPooledDataSource"/>
+        <!--<property name="dataSource" ref="comboPooledDataSource"></property>-->
+        <!-- 扫描model包 使用别名 mybatis_config.xml -->
+        <property name="typeAliasesPackage" value="com.atguigu.crud.bean"/>
+        <!--引入pagehelper插件：默认配置-->
+        <property name="plugins">
+            <array>
+                <bean class="com.github.pagehelper.PageInterceptor">
+                    <property name="properties">
+                        <!--使用下面的方式配置参数，一行配置一个 -->
+                        <value>
+                            params=value1
+                            reasonable=true
+                        </value>
+                    </property>
+
+                </bean>
+            </array>
+        </property>
+        <!--配置mybatis的mapper扫描位置  -->
+        <property name="mapperLocations" value="classpath*:mapper/*.xml"></property>
+    </bean>
+
+    <!--配置扫描器，将mybatis接口的实现加入到IOC容器中-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <!--扫描所有dao接口的实现，并加到IOC容器中-->
+        <property name="basePackage" value="com.atguigu.crud.dao"></property>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory" />
+    </bean>
+    <!--mybatis整合===================================================-->
+
+    <!--配置事物管理器-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <!--告诉事物控制器，要控制事物的数据源-->
+        <property name="dataSource" ref="comboPooledDataSource"></property>
+    </bean>
+
+    <!--开启注解模式的事物控制，比较重要的事物使用配置实现-->
+    <aop:config>
+        <!--* 表示所有访问控制符（public等） service.. 表示service下，所有子包都包含  （..） 所有参数类型-->
+        <aop:pointcut id="txPoint" expression="execution(* com.atguigu.crud.service..*(..))"></aop:pointcut>
+        <!--配置事物增强 txAdvice制定规则切入，切入的哪些方法就是用pointcut-ref指向 -->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="txPoint"></aop:advisor>
+    </aop:config>
+
+    <!--配置事务增强，事务如何切入，实现的增强方法  注意：transaction-manager的值要和事务管理器一样 -->
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <!-- * 代表所有方法都是事务方法-->
+            <tx:method name="*"/>
+            <!--以get开头的方法都是查询-->
+            <tx:method name="get*" read-only="true"></tx:method>
+        </tx:attributes>
+    </tx:advice>
+
+
+</beans>
